@@ -7,8 +7,8 @@
   "main": "src/server.js",
   "scripts": {
     "dev": "node --watch src/server.js",
-    "start": "node src/server.js",
-    "build": "echo build ok",
+    "start": "npm start",
+    "build": "npm install",
     "seed": "node scripts/seed.js"
   },
   "dependencies": {
