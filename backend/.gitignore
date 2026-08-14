@@ -25,3 +25,6 @@ dist/
 
 .vercel
 .env*
+
+
+seed_assets/
