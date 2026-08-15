@@ -8,7 +8,7 @@ const router = Router();
 
 function toPublic(req, doc) {
   const envBase = (process.env.BACKEND_URL || process.env.API_URL || "").trim().replace(/\/$/, "");
-  const base = envBase || `${req.protocol}://${req.get("
+  const base = envBase || `${req.protocol}://${req.get("host")}`;
   return {
     key: "ourstory",
     alt: doc.alt || "Our story image",
