@@ -1,132 +1,133 @@
 import { Router } from "express";
+import path from "node:path";
+import fs from "node:fs";
+import { fileURLToPath } from "node:url";
+import { getDb } from "../db.js";
+import { GALLERY_CATEGORIES } from "../galleryData.js";
 
-const router = Router();
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const SEED_ASSETS_DIR = path.resolve(__dirname, "..", "..", "seed_assets");
 
-const GROUPS = [
-  {
-    channel: "Showroom Development",
-    folderUrl: "showroom_development",
-    imageUrl: "/work/showroom-development.png",
-    files: [
-      "as01.png", "ms01.png", "ms02.png", "ms03.png", "ph01.png", "ph02.png",
-      "tvs01.png", "tvs02.png", "tvs03.png", "tvs04.png", "tvs05.png", "tvs06.png",
-      "tvs07.png", "tvs08.png", "tvs09.png", "vedanta01.png", "vp01.png", "vp02.png", "vp03.png"
-    ],
-    getClient: (f) => {
-      const lower = f.toLowerCase();
-      if (lower.startsWith("ms")) return "Maruti Suzuki";
-      if (lower.startsWith("tvs")) return "TVS Motors";
-      if (lower.startsWith("vedanta")) return "Vedanta Group";
-      if (lower.startsWith("vp")) return "PhysicsWallah Vidyapeeth";
-      if (lower.startsWith("as")) return "Apollo Sage Hospitals";
-      if (lower.startsWith("ph") || lower.startsWith("police")) return "MP Police Headquarters";
-      return "BrandQube Showroom";
-    },
-  },
-  {
-    channel: "Demo Van Campaigns",
-    folderUrl: "Demo_Van",
-    imageUrl: "/work/demo-van-activity.png",
-    files: [
-      "Ather01.png", "Ather02.png", "gulf01.png", "gulf02.png", "gulf03.png",
-      "hero01.png", "hero02.png", "hero03.png", "jio_cinema.png", "maaza.png",
-      "maaza02.png", "maaza03.png", "ms01.png", "ph01.png", "ph02.png",
-      "tata_tea.png", "tata_tea02.png", "tvs01.png", "tvs02.png", "tvs03.png",
-      "tvs04.png", "tvs05.png"
-    ],
-    getClient: (f) => {
-      const lower = f.toLowerCase();
-      if (lower.startsWith("ather")) return "Ather Energy";
-      if (lower.startsWith("gulf")) return "Gulf Oil";
-      if (lower.startsWith("hero")) return "Hero MotoCorp";
-      if (lower.startsWith("jio")) return "Jio Cinema";
-      if (lower.startsWith("maaza")) return "Maaza";
-      if (lower.startsWith("ms")) return "Maruti Suzuki";
-      if (lower.startsWith("ph") || lower.startsWith("police") || lower.startsWith("mp")) return "MP Police Headquarters";
-      if (lower.startsWith("tata")) return "Tata Tea Agni";
-      if (lower.startsWith("tvs")) return "TVS Motors";
-      return "BrandQube Demo Van";
-    },
-  },
-  {
-    channel: "On-Ground Activations",
-    folderUrl: "Mela_activity",
-    imageUrl: "/work/mela-activities.png",
-    files: [
-      "Mpph.png", "Mpph02.png", "bajaj01.png", "bajaj02.png", "hero01.png", "hero02.png",
-      "hero03.png", "mahindra01.png", "mahindra02.png", "mahindra03.png", "mahindra04.png",
-      "tata_agni01.png", "tata_agni02.png", "tvs01.png", "tvs02.png", "tvs03.png", "tvs04.png"
-    ],
-    getClient: (f) => {
-      const lower = f.toLowerCase();
-      if (lower.startsWith("bajaj")) return "Bajaj Auto";
-      if (lower.startsWith("hero")) return "Hero MotoCorp";
-      if (lower.startsWith("mahindra")) return "Mahindra";
-      if (lower.startsWith("tata")) return "Tata Tea Agni";
-      if (lower.startsWith("tvs")) return "TVS Motors";
-      if (lower.startsWith("mp") || lower.startsWith("police") || lower.startsWith("mpph")) return "MP Police Headquarters";
-      return "BrandQube Mela Activation";
-    },
-  },
-  {
-    channel: "Outdoor & Transit",
-    folderUrl: "transit",
-    imageUrl: "/work/transit-advertising.png",
-    files: ["as01.png", "pw01.png", "pw02.png", "tvs01.png", "tvs02.png", "tvs03.png", "tvs04.png"],
-    getClient: (f) => {
-      const lower = f.toLowerCase();
-      if (lower.startsWith("as")) return "Apollo Sage Hospitals";
-      if (lower.startsWith("pw")) return "PhysicsWallah Vidyapeeth";
-      if (lower.startsWith("tvs")) return "TVS Motors";
-      return "BrandQube Transit";
-    },
-  },
-  {
-    channel: "Wall Wrap Advertising",
-    folderUrl: "wall_wrap",
-    imageUrl: "/work/wall-wrap-advertising.png",
-    files: ["ather01.png", "ather02.png", "tvs01.png", "tvs02.png", "tvs03.png", "tvs04.png"],
-    getClient: (f) => {
-      const lower = f.toLowerCase();
-      if (lower.startsWith("ather")) return "Ather Energy";
-      if (lower.startsWith("tvs")) return "TVS Motors";
-      return "BrandQube Wall Wrap";
-    },
-  },
-  {
-    channel: "Corporate Events",
-    folderUrl: "coorporate_events",
-    imageUrl: "/work/customised-stationery.png",
-    files: ["As01.png", "As02.png", "As03.png", "As04.png"],
-    getClient: (f) => {
-      const lower = f.toLowerCase();
-      if (lower.startsWith("as")) return "Apollo Sage Hospitals";
-      return "BrandQube Corporate Events";
-    },
-  },
-];
+function getBaseUrl(req) {
+  const envBase = (process.env.BACKEND_URL || process.env.API_URL || "").trim().replace(/\/$/, "");
+  return envBase || `${req.protocol}://${req.get("host")}`;
+}
 
-/** GET /api/all-work-assets — returns all assets */
-router.get("/", (_req, res) => {
-  const allItems = [];
+/** GET /api/all-work-assets — returns all gallery assets across all channels */
+router.get("/", async (req, res, next) => {
+  try {
+    const base = getBaseUrl(req);
+    const { db } = getDb();
 
-  for (const group of GROUPS) {
-    for (const file of group.files) {
-      const client = group.getClient(file);
-      allItems.push({
-        id: `${group.folderUrl}_${file}`,
-        filename: file,
-        client,
-        title: `${client} ${group.channel} Execution`,
-        channel: group.channel,
-        year: "2025",
-        imageUrl: group.imageUrl,
-      });
+    let allItems = [];
+
+    if (db) {
+      const docs = await db
+        .collection("gallery_assets")
+        .find({})
+        .sort({ order: 1, filename: 1 })
+        .toArray();
+
+      if (docs.length > 0) {
+        allItems = docs.map((doc) => {
+          const v = doc.hash ? doc.hash.substring(0, 8) : Date.now();
+          const categoryConfig = GALLERY_CATEGORIES.find((c) => c.category === doc.category);
+          const apiPrefix = categoryConfig ? categoryConfig.apiPrefix : "/api/all-work-assets";
+          return {
+            id: doc.id || doc.filename,
+            filename: doc.filename,
+            client: doc.client,
+            title: doc.title,
+            channel: doc.channel,
+            category: doc.category,
+            year: doc.year || "2025",
+            imageUrl: `${base}${apiPrefix}/${encodeURIComponent(doc.id || doc.filename)}/image?v=${v}`,
+          };
+        });
+      }
     }
-  }
 
-  res.set("Cache-Control", "public, max-age=3600");
-  res.json(allItems);
+    if (allItems.length === 0) {
+      for (const group of GALLERY_CATEGORIES) {
+        for (const file of group.files) {
+          const client = group.getClient(file);
+          const title = group.getTitle(file, client);
+          allItems.push({
+            id: `${group.folder}_${file}`,
+            filename: file,
+            client,
+            title,
+            channel: group.channel,
+            category: group.category,
+            year: "2025",
+            imageUrl: `${base}${group.apiPrefix}/${encodeURIComponent(file)}/image`,
+          });
+        }
+      }
+    }
+
+    res.set("Cache-Control", "public, max-age=60");
+    res.json(allItems);
+  } catch (e) {
+    next(e);
+  }
 });
 
-export default router;
+/** GET /api/all-work-assets/:id/image — image streaming fallback for all work assets */
+router.get("/:id/image", async (req, res, next) => {
+  try {
+    const assetId = decodeURIComponent(req.params.id);
+    const { db, bucket } = getDb();
+
+    if (db && bucket) {
+      const doc = await db.collection("gallery_assets").findOne({
+        $or: [{ id: assetId }, { filename: assetId }],
+      });
+
+      if (doc && doc.fileId) {
+        const etag = doc.hash ? `"${doc.hash}"` : undefined;
+        if (etag && req.headers["if-none-match"] === etag) {
+          return res.status(304).end();
+        }
+
+        res.set("Content-Type", doc.contentType || "image/png");
+        res.set("Cache-Control", "public, max-age=31536000, immutable");
+        if (etag) res.set("ETag", etag);
+
+        return bucket
+          .openDownloadStream(doc.fileId)
+          .on("error", () => res.status(404).end())
+          .pipe(res);
+      }
+    }
+
+    // Try finding across all categories
+    for (const group of GALLERY_CATEGORIES) {
+      const candidates = [
+        path.join(SEED_ASSETS_DIR, group.folder, assetId),
+        path.join(SEED_ASSETS_DIR, group.folder, path.basename(assetId)),
+        path.join(SEED_ASSETS_DIR, assetId),
+      ];
+
+      for (const filePath of candidates) {
+        if (fs.existsSync(filePath)) {
+          const ext = path.extname(filePath).toLowerCase();
+          const mimeTypes = {
+            ".png": "image/png",
+            ".jpg": "image/jpeg",
+            ".jpeg": "image/jpeg",
+            ".svg": "image/svg+xml",
+            ".webp": "image/webp",
+          };
+          res.set("Content-Type", mimeTypes[ext] || "image/png");
+          res.set("Cache-Control", "public, max-age=31536000, immutable");
+          return fs.createReadStream(filePath).pipe(res);
+        }
+      }
+    }
+
+    res.status(404).json({ error: "Asset not found" });
+  } catch (e) {
+    next(e);
+  }
+});
