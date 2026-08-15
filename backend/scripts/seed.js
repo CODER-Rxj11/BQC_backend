@@ -4,14 +4,14 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { connect, getDb, close } from "../src/db.js";
+import { GALLERY_CATEGORIES } from "../src/galleryData.js";
+
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ASSETS = path.join(__dirname, "..", "seed_assets");
 
 /**
- * Initial client logos. Put a matching file in backend/seed_assets/ for each.
- * Missing files are skipped (with a warning) so the seed is safe to re-run as
- * you add logos. SVG preferred; PNG/JPG/WEBP with transparent bg also fine.
+  * Initial client logos.
  */
 const MANIFEST = [
   { name: "TVS", file: "tvs.png", order: 1 },
@@ -46,8 +46,7 @@ const MIME = {
   ".webp": "image/webp",
 };
 
-// Resolve a manifest entry to an actual file (allow any supported extension so
-// you can drop solis.png instead of solis.svg without editing this file).
+
 async function resolveFile(entry) {
   const base = entry.file.replace(/\.[^.]+$/, "");
   const candidates = [entry.file, ...Object.keys(MIME).map((ext) => base + ext)];
@@ -67,14 +66,23 @@ async function run() {
   await connect();
   const { db, bucket } = getDb();
 
-  let seeded = 0;
-  let skipped = 0;
+   if (!db || !bucket) {
+    console.error("Could not connect to MongoDB. Make sure MONGODB_URI is valid in .env");
+    process.exit(1);
+  }
+
+  // Create indexes
+  await db.collection("gallery_assets").createIndex({ id: 1 }, { unique: true }).catch(() => {});
+  await db.collection("gallery_assets").createIndex({ category: 1, order: 1 }).catch(() => {});
+
+  let seededLogos = 0;
+  let seededGallery = 0;
 
   for (const entry of MANIFEST) {
     const found = await resolveFile(entry);
     if (!found) {
       console.warn(`  ⚠ SKIP ${entry.name} — no file for "${entry.file}" in seed_assets/`);
-      skipped++;
+      
       continue;
     }
 
@@ -122,10 +130,9 @@ async function run() {
       await db.collection("clients").insertOne({ ...doc, createdAt: new Date() });
     }
     console.log(`  ✓ ${entry.name} seeded (${contentType}, ${buf.length} bytes)`);
-    seeded++;
+    seededLogos++;
   }
 
-  // Seed Our Story asset into site_assets
   try {
     const storyFile = path.join(ASSETS, "ourstry.webp");
     await fs.access(storyFile);
@@ -165,7 +172,7 @@ async function run() {
     console.warn(`  ⚠ Could not seed Our Story image: ${err.message}`);
   }
 
-  // Seed Selected Work projects into projects collection & GridFS
+  console.log("\n3. Seeding Main Portfolio Projects...");
   const WORK_PROJECTS = [
     {
       slug: "transit-advertising",
@@ -277,18 +284,101 @@ async function run() {
       } else {
         await db.collection("projects").insertOne({ ...doc, createdAt: new Date() });
       }
-      console.log(`  ✓ Project "${project.channel}" seeded to MongoDB GridFS (${buf.length} bytes)`);
+      console.log(`  ✓ Project "${project.channel}" seeded (${buf.length} bytes)`);
     } catch (err) {
       console.warn(`  ⚠ Could not seed project ${project.file}: ${err.message}`);
     }
+  }console.log("\n4. Seeding All Category Gallery Work Photos into GridFS...");
+  for (const group of GALLERY_CATEGORIES) {
+    console.log(`\n  ▸ Category [${group.channel}] (${group.files.length} images)...`);
+    let orderIndex = 1;
+
+    for (const filename of group.files) {
+      try {
+        const filePath = path.join(ASSETS, group.folder, filename);
+        await fs.access(filePath);
+        const buf = await fs.readFile(filePath);
+        const hash = crypto.createHash("sha256").update(buf).digest("hex");
+        const ext = path.extname(filename).toLowerCase();
+        const contentType = MIME[ext] || "image/png";
+
+        const assetId = filename;
+        const client = group.getClient(filename);
+        const title = group.getTitle(filename, client);
+
+        const existing = await db.collection("gallery_assets").findOne({
+          $or: [{ id: assetId }, { id: `${group.folder}_${filename}` }],
+        });
+
+        if (existing && existing.hash === hash) {
+          console.log(`    = ${filename} (${client}) unchanged`);
+          orderIndex++;
+          continue;
+        }
+
+        if (existing && existing.fileId) {
+          try {
+            await bucket.delete(existing.fileId);
+          } catch {
+            /* ignore */
+          }
+        }
+
+        const fileId = await new Promise((resolve, reject) => {
+          const s = bucket.openUploadStream(filename, {
+            contentType,
+            metadata: {
+              category: group.category,
+              channel: group.channel,
+              client,
+              hash,
+            },
+          });
+          s.on("error", reject);
+          s.on("finish", () => resolve(s.id));
+          s.end(buf);
+        });
+
+        const doc = {
+          id: assetId,
+          category: group.category,
+          channel: group.channel,
+          folder: group.folder,
+          filename,
+          client,
+          title,
+          year: "2025",
+          contentType,
+          fileId,
+          hash,
+          order: orderIndex++,
+          updatedAt: new Date(),
+        };
+
+        if (existing) {
+          await db.collection("gallery_assets").updateOne({ _id: existing._id }, { $set: doc });
+        } else {
+          await db.collection("gallery_assets").insertOne({ ...doc, createdAt: new Date() });
+        }
+
+        console.log(`    ✓ ${filename} [${client}] seeded to GridFS (${buf.length} bytes)`);
+        seededGallery++;
+      } catch (err) {
+        console.warn(`    ⚠ Error seeding ${filename}: ${err.message}`);
+      }
+    }
   }
 
-  console.log(`\nDone. ${seeded} client logos seeded.`);
+  console.log(`\n========================================`);
+  console.log(`✓ Seeding Complete!`);
+  console.log(`✓ Logos Seeded/Updated: ${seededLogos}`);
+  console.log(`✓ Category Gallery Images Seeded/Updated: ${seededGallery}`);
+  console.log(`========================================\n`);
   await close();
   process.exit(0);
 }
 
 run().catch((e) => {
-  console.error(e);
+  console.error("Seed failed:", e);
   process.exit(1);
 });
