@@ -8,6 +8,7 @@ import { GALLERY_CATEGORIES } from "../galleryData.js";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SEED_ASSETS_DIR = path.resolve(__dirname, "..", "..", "seed_assets");
 
+const router = Router();
 function getBaseUrl(req) {
   const envBase = (process.env.BACKEND_URL || process.env.API_URL || "").trim().replace(/\/$/, "");
   return envBase || `${req.protocol}://${req.get("host")}`;
@@ -131,3 +132,4 @@ router.get("/:id/image", async (req, res, next) => {
     next(e);
   }
 });
+export default router;
