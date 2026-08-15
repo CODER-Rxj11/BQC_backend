@@ -7,7 +7,8 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 *
 const router = Router();
 
 function toPublic(req, doc) {
-  const base = `${req.protocol}://${req.get("host")}`;
+  const envBase = (process.env.BACKEND_URL || process.env.API_URL || "").trim().replace(/\/$/, "");
+  const base = envBase || `${req.protocol}://${req.get("
   return {
     key: "ourstory",
     alt: doc.alt || "Our story image",

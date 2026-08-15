@@ -12,7 +12,9 @@ const upload = multer({
 const router = Router();
 
 function toPublic(req, c) {
-  const base = `${req.protocol}://${req.get("host")}`;
+  // const base = `${req.protocol}://${req.get("host")}`;
+  const envBase = (process.env.BACKEND_URL || process.env.API_URL || "").trim().replace(/\/$/, "");
+  const base = envBase || `${req.protocol}://${req.get("host")}`;
   return {
     id: c._id.toString(),
     name: c.name,

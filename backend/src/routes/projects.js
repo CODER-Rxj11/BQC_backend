@@ -5,7 +5,8 @@ import { getDb } from "../db.js";
 const router = Router();
 
 function toPublic(req, doc) {
-  const base = `${req.protocol}://${req.get("host")}`;
+  const envBase = (process.env.BACKEND_URL || process.env.API_URL || "").trim().replace(/\/$/, "");
+  const base = envBase || `${req.protocol}://${req.get("host")}`;
   const v = doc.hash ? doc.hash.substring(0, 8) : (doc.updatedAt ? new Date(doc.updatedAt).getTime() : Date.now());
   return {
     id: doc._id.toString(),
