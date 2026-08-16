@@ -3,12 +3,12 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "BrandQube API — client logos stored in MongoDB (GridFS) and streamed with long-lived caching.",
+  "description": "BrandQube API — client logos and gallery assets stored in MongoDB (GridFS).",
   "main": "src/server.js",
   "scripts": {
     "dev": "node --watch src/server.js",
-    "start": "npm start",
-    "build": "npm install",
+    "start": "node src/server.js",
+    "build": "echo build ok",
     "seed": "node scripts/seed.js"
   },
   "dependencies": {
