@@ -124,20 +124,20 @@ const isServerless = Boolean(
 );
 
 // Only start listening if this file is executed directly (e.g., node src/server.js or npm run dev)
-const isDirectRun = Boolean(
-  process.argv[1] &&
-  path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
-);
+if (!isServerless) {
+  const port = parseInt(process.env.PORT || "4000", 10);
+  
+  // Bind to 0.0.0.0 immediately so Render, Docker, and cloud hosts detect the open port instantly
+  app.listen(port, "0.0.0.0", () => {
+    console.log(`✓ BrandQube API listening on port ${port} (0.0.0.0:${port})`);
+  });
 
-if (!isServerless && isDirectRun) {
-  const port = process.env.PORT || 4000;
   connect()
     .then(() => {
-      app.listen(port, () => console.log(`✓ BrandQube API listening on port ${port}`));
+      console.log("✓ MongoDB Atlas ready");
     })
     .catch((e) => {
-      console.error("✗ Could not connect to MongoDB:", e.message);
-      process.exit(1);
+      console.warn("⚠ MongoDB connection notice:", e.message);
     });
 }
 
