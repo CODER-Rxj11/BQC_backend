@@ -70,6 +70,9 @@ app.use(cors(corsOptions));
 app.options("*", cors(corsOptions));
 
 app.use(express.json());
+app.use("/seed_assets", express.static(path.join(__dirname, "..", "seed_assets")));
+
+
 
 
 
