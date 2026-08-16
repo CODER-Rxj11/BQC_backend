@@ -3,3 +3,5 @@ import { createCategoryRouter } from "./galleryHelper.js";
 
 const config = GALLERY_CATEGORIES.find((c) => c.category === "showroom");
 const router = createCategoryRouter(config);
+
+export default router;
