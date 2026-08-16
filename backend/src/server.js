@@ -31,8 +31,8 @@ const defaultOrigins = [
   "http://127.0.0.1:3000",
   "http://127.0.0.1:5173",
   "http://127.0.0.1:4173",
-  "https://brandqube-frontend.vercel.app", 
-  "https://bqc-backend-1.onrender.com"
+  "https://brandqube-frontend.vercel.app",
+  "https://bqc-backend-1.onrender.com",
 ];
 
 const envOrigins = [
@@ -71,8 +71,6 @@ app.options("*", cors(corsOptions));
 
 app.use(express.json());
 app.use("/seed_assets", express.static(path.join(__dirname, "..", "seed_assets")));
-
-
 
 
 
@@ -123,7 +121,6 @@ const isServerless = Boolean(
   process.env.SERVERLESS
 );
 
-// Only start listening if this file is executed directly (e.g., node src/server.js or npm run dev)
 if (!isServerless) {
   const port = parseInt(process.env.PORT || "4000", 10);
   
@@ -132,6 +129,7 @@ if (!isServerless) {
     console.log(`✓ BrandQube API listening on port ${port} (0.0.0.0:${port})`);
   });
 
+  // Connect to MongoDB asynchronously in background
   connect()
     .then(() => {
       console.log("✓ MongoDB Atlas ready");
